@@ -25,12 +25,12 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
 
         optimizer.zero_grad()
         # prepare data
-        image_id, img_fea, captions, tags, c_lengths, t_lengths = map(lambda x: x.to(device), batch)
+        img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
         img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
         # negative sampling
-        img_embedd = torch.cat([img_embedd, img_embedd[::-1]])
-        cap_embedd = torch.cat([cap_embedd, cap_embedd[::-1]])
-        negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())])
+        img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
+        cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
+        negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())]).to(device)
         # backward
         loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
         loss.backward()
@@ -59,12 +59,12 @@ def eval_epoch(model, validation_data, loss_fn, device, opt):
                 validation_data, mininterval=2,
                 desc='  - (Validation) ', leave=False):
             # prepare data
-            image_id, img_fea, captions, tags, c_lengths, t_lengths = map(lambda x: x.to(device), batch)
+            img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
             img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
             # negative sampling
-            img_embedd = torch.cat([img_embedd, img_embedd[::-1]])
-            cap_embedd = torch.cat([cap_embedd, cap_embedd[::-1]])
-            negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())])
+            img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
+            cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
+            negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())]).to(device)
             # backward
             loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
             # note keeping
@@ -87,7 +87,7 @@ def test(model, test_data, loss_fn, device, opt):
                 test_data, mininterval=2,
                 desc='  - (Validation) ', leave=False):
             # prepare data
-            image_id, img_fea, captions, tags, c_lengths, t_lengths = map(lambda x: x.to(device), batch)
+            img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
             img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
 
             # backward
@@ -223,7 +223,7 @@ def main():
         train(dan, training_data, validation_data, optimizer, loss_fn, device ,opt)
 
     model_name = 'model.chkpt'
-    
+
     checkpoint = torch.load(f"./models/{model_name}", map_location=device)
     dan.load_state_dict(checkpoint['model'])
     test(dan, validation_data, loss_fn, device, opt)

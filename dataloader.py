@@ -32,25 +32,31 @@ class ImageSearchDataset(Dataset):
         c_tokens.extend([self.vocab_cap(token) for i, token in enumerate(tokenized_c) if i<self.max_len])
 
         # tokenize tags
-        t_tokens = [tag.split(':')[0] for tag in tags]
-        t_tokens.extend([self.vocab_tag(token) for i, token in enumerate(t_tokens) if i<self.max_len])
-
+        #print(tags)
+        tags_genre = [tag.split(':')[0] for tag in tags]
+        t_tokens = []
+        t_tokens.extend([self.vocab_tag(token) for i, token in
+            enumerate(tags_genre) if i<self.max_len])
+        #print(t_tokens)
         return image_id, img_features, c_tokens, t_tokens
 
     def collate_fn(self, data):
         image_id, img_fea, captions, tags = zip(*data)
         c_lengths = [len(x) for x in captions]
         t_lengths = [len(x) for x in tags]
+        
+        #print(tags)
 
         padded_caps = [n + [Constants.PAD for _ in range(self.max_len - len(n))] for n in captions]
         padded_tags = [n + [Constants.PAD for _ in range(self.max_len - len(n))] for n in tags]
-
+        
+        #image_id = torch.Tensor(image_id)
         img_fea = torch.FloatTensor(img_fea)
         captions = torch.LongTensor(padded_caps).view(-1, self.max_len)
         tags = torch.LongTensor(padded_tags).view(-1, self.max_len)
         c_lengths = torch.LongTensor(c_lengths).view(-1,1)
         t_lengths = torch.LongTensor(t_lengths).view(-1,1)
-        return image_id, img_fea, captions, tags, c_lengths, t_lengths
+        return image_id, (img_fea, captions, tags, c_lengths, t_lengths)
 
     def __len__(self):
         return len(self.data)

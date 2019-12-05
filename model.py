@@ -41,7 +41,7 @@ class Ingres2Recipe(nn.Module):
         cap = self.embed(captions)
         cap = self.dropout(cap)
         cap = torch.sum(cap, dim=1)
-        cap /= i_length.float() + 1e-10
+        cap /= c_lengths.float() + 1e-10
         cap = F.relu(self.linear_i1(cap))
         cap = self.dropout(cap)
         cap = self.linear_i2(cap)
