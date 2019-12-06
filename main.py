@@ -29,11 +29,16 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
         img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
         img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
         # negative sampling
-        img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
+        img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
         cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
-        negative_sampling = torch.cat([torch.ones(c_lengths.size()), -1*torch.ones(c_lengths.size())]).to(device)
+        negative_sampling = torch.cat([torch.ones(c_lengths.size()),
+            -1*torch.ones(c_lengths.size())]).to(device).squeeze()
+        #negative_sampling = torch.ones(c_lengths.size()).to(device)
+        
+        
         # backward
-        loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
+        losses = loss_fn(img_embedd, cap_embedd, negative_sampling)
+        loss = losses.mean()
         loss.backward()
         optimizer.step()
         # note keeping
@@ -45,7 +50,7 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
         #print("===============================================\n")
     print(cap_embedd[0, :5])
     print(img_embedd[0, :5])
-
+    print(losses)
     loss = total_loss/count
     return loss
 
@@ -65,15 +70,18 @@ def eval_epoch(model, validation_data, loss_fn, device, opt):
             img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
             img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
             # negative sampling
-            img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
+            img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
             cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
-            negative_sampling = torch.cat([torch.ones(c_lengths.size()), -1*torch.ones(c_lengths.size())]).to(device)
+            negative_sampling = torch.cat([torch.ones(c_lengths.size()),
+                -1*torch.ones(c_lengths.size())]).to(device).squeeze()
             # backward
-            loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
+            losses = loss_fn(img_embedd, cap_embedd, negative_sampling)
+            loss = losses.mean()
             # note keeping
             total_loss += loss.item()
             count +=1
     loss = total_loss/count
+    print(loss)
     print("Loss:", loss)
     return loss
 
@@ -122,9 +130,10 @@ def ranking(img_embedds, caption_embedds, img_ids):
     cos_sim = torch.mm(caption_embedds,img_embedds.T)/ \
                 torch.mm(caption_embedds.norm(2, dim=1, keepdim=True),
                         img_embedds.norm(2, dim=1, keepdim=True).T)
-    _, idx = torch.topk(cos_sim, 20, dim=1)
+    _, idx = torch.topk(cos_sim, 80, dim=1)
     top20 = idx.cpu().numpy()
     img_ids = np.array(img_ids)
+    count = 0
     with open('answer.csv', 'w') as f:
         f.write("Descritpion_ID,Top_20_Image_IDs\n")
         for i, img_id in enumerate(img_ids):
@@ -132,7 +141,9 @@ def ranking(img_embedds, caption_embedds, img_ids):
             top_imgs_str = " ".join(list(top_imgs))
             text_id = img_id.split(".")[0]+".txt"
             f.write(text_id+","+top_imgs_str+"\n")
-
+            if img_id in list(top_imgs):
+                count+=1
+        print("count", count)
 
 def train(model, training_data, validation_data, optimizer, loss_fn, device, opt):
     ''' Start training '''
@@ -222,7 +233,7 @@ def main():
     ''' Main function '''
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-epoch', type=int, default=30)
+    parser.add_argument('-epoch', type=int, default=20)
     parser.add_argument('-batch_size', type=int, default=32)
 
     parser.add_argument('-dropout', type=float, default=0.5)
@@ -252,8 +263,8 @@ def main():
     dan = Ingres2Recipe(len(vocab_cap), opt.embedding_size, opt.image_hidden_size, opt.dropout).to(device)
     optimizer = optim.Adam(
             dan.parameters(),
-            betas=(0.9, 0.98), eps=1e-09, lr=0.0003)
-    loss_fn = nn.CosineEmbeddingLoss()
+            betas=(0.9, 0.98), eps=1e-09, lr=0.001)
+    loss_fn = nn.CosineEmbeddingLoss(margin=0.1, reduction='none')
     if not opt.test_mode:
         train(dan, training_data, validation_data, optimizer, loss_fn, device ,opt)
 
@@ -261,7 +272,7 @@ def main():
 
     checkpoint = torch.load(f"./models/{model_name}", map_location=device)
     dan.load_state_dict(checkpoint['model'])
-    test(dan, test_data, loss_fn, device, opt)
+    test(dan, training_data, loss_fn, device, opt)
     #predict_prob(dan, test_data, loss_fn, device, opt)
 if __name__ == '__main__':
     main()

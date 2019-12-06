@@ -18,13 +18,15 @@ class Ingres2Recipe(nn.Module):
         # pay attention to padding_idx
         self.embed = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
 
-        self.linear_img1 = nn.Linear(img_fea_size, 200)
-        self.linear_img2 = nn.Linear(200, 100)
-        self.linear_i1 = nn.Linear(emb_dim, 200)
-        self.linear_i2 = nn.Linear(200, 100)
+        self.linear_img1 = nn.Linear(img_fea_size, 300)
+        self.linear_img2 = nn.Linear(300, 200)
+        self.linear_i1 = nn.Linear(emb_dim, 300)
+        self.linear_i2 = nn.Linear(300, 200)
 
         self.dropout = nn.Dropout(dropout)
-        self.batchnorm = nn.BatchNorm1d(200)
+        self.batchnorm = nn.BatchNorm1d(2048)
+        self.bn_img = nn.BatchNorm1d(200)
+        self.bn_cap = nn.BatchNorm1d(200)
 
     def forward(self, img_fea, captions, c_lengths):
         """
@@ -33,10 +35,11 @@ class Ingres2Recipe(nn.Module):
         @param r_length, i_length: an int tensor of size (batch_size), which represents the non-trivial (excludes padding)
             length of each sentences in the data.
         """
+        img_fea = self.batchnorm(img_fea)
         imgf = F.relu(self.linear_img1(img_fea))
-        imgf = self.batchnorm(imgf)
+        #imgf = self.batchnorm(imgf)
         imgf = self.dropout(imgf)
-        imgf = self.linear_img2(imgf)
+        imgf = self.bn_img(self.linear_img2(imgf))
 
         cap = self.embed(captions)
         cap = self.dropout(cap)
@@ -44,6 +47,6 @@ class Ingres2Recipe(nn.Module):
         cap /= c_lengths.float() + 1e-10
         cap = F.relu(self.linear_i1(cap))
         cap = self.dropout(cap)
-        cap = self.linear_i2(cap)
+        cap = self.bn_cap(self.linear_i2(cap))
 
         return imgf, cap
