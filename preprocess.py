@@ -68,7 +68,7 @@ def preprocess_test(path):
         data['captions'] = open(cap_filename, 'r').read().splitlines()
         data['tags'] = open(tag_filename, 'r').read().splitlines()
         
-        output.append(img_features)
+        output.append(data)
 
     # print(output)
     print(images.shape)

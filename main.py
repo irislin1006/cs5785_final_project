@@ -9,6 +9,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.utils.data
 from model import Ingres2Recipe
+import numpy as np
 import dataloader
 from build_vocab import Vocabulary
 from sklearn.metrics import roc_auc_score
@@ -30,7 +31,7 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
         # negative sampling
         img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
         cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
-        negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())]).to(device)
+        negative_sampling = torch.cat([torch.ones(c_lengths.size()), -1*torch.ones(c_lengths.size())]).to(device)
         # backward
         loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
         loss.backward()
@@ -42,6 +43,8 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
         #if count%10==0:
         #    print(f"Loss: {loss.item()}")
         #print("===============================================\n")
+    print(cap_embedd[0, :5])
+    print(img_embedd[0, :5])
 
     loss = total_loss/count
     return loss
@@ -64,7 +67,7 @@ def eval_epoch(model, validation_data, loss_fn, device, opt):
             # negative sampling
             img_embedd = torch.cat([img_embedd, torch.flip(img_embedd, [0])]).to(device)
             cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
-            negative_sampling = torch.cat([torch.ones(c_lengths.size()), torch.zeros(c_lengths.size())]).to(device)
+            negative_sampling = torch.cat([torch.ones(c_lengths.size()), -1*torch.ones(c_lengths.size())]).to(device)
             # backward
             loss = loss_fn(img_embedd, cap_embedd, negative_sampling)
             # note keeping
@@ -80,24 +83,56 @@ def test(model, test_data, loss_fn, device, opt):
     model.eval()
     count=0
     total_loss = 0
-    mortality_all = []
-    pred_all = []
+    img_embedds = []
+    caption_embedds = []
+    img_ids = []
     with torch.no_grad():
         for batch in tqdm(
                 test_data, mininterval=2,
-                desc='  - (Validation) ', leave=False):
+                desc='  - (Testing) ', leave=False):
             # prepare data
             img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
             img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
+            
+            img_ids.extend(batch[0])
+            img_embedds.append(img_embedd)
+            caption_embedds.append(cap_embedd)
+            
+            ## compute loss
+            #loss = loss_fn(img_embedd, cap_embedd)
+            #total_loss += loss.item()
+            #count +=1
+    #loss_per_word = total_loss/count
+    #print("----- Test Result -----")
+    #print("Loss:", loss_per_word)
+    img_embedds = torch.cat(img_embedds, dim=0)
+    caption_embedds = torch.cat(caption_embedds, dim=0)
+    print("img shape:", img_embedds.size())
+    print("caption shape:", caption_embedds.size())
+    ranking(img_embedds, caption_embedds, img_ids)
 
-            # backward
-            loss = loss_fn(img_embedd, cap_embedd)
-            # note keeping
-            total_loss += loss.item()
-            count +=1
-    loss_per_word = total_loss/count
-    print("----- Test Result -----")
-    print("Loss:", loss_per_word)
+def ranking(img_embedds, caption_embedds, img_ids):
+    """
+    @ param img_embedds = (2000, 100)
+    @ param caption_embedds = (2000, 100)
+    @ param img_ids = (2000,)
+    """
+
+    # cos_sim = (2000, 2000)
+    cos_sim = torch.mm(caption_embedds,img_embedds.T)/ \
+                torch.mm(caption_embedds.norm(2, dim=1, keepdim=True),
+                        img_embedds.norm(2, dim=1, keepdim=True).T)
+    _, idx = torch.topk(cos_sim, 20, dim=1)
+    top20 = idx.cpu().numpy()
+    img_ids = np.array(img_ids)
+    with open('answer.csv', 'w') as f:
+        f.write("Descritpion_ID,Top_20_Image_IDs\n")
+        for i, img_id in enumerate(img_ids):
+            top_imgs = img_ids[top20[i]]
+            top_imgs_str = " ".join(list(top_imgs))
+            text_id = img_id.split(".")[0]+".txt"
+            f.write(text_id+","+top_imgs_str+"\n")
+
 
 def train(model, training_data, validation_data, optimizer, loss_fn, device, opt):
     ''' Start training '''
@@ -217,7 +252,7 @@ def main():
     dan = Ingres2Recipe(len(vocab_cap), opt.embedding_size, opt.image_hidden_size, opt.dropout).to(device)
     optimizer = optim.Adam(
             dan.parameters(),
-            betas=(0.9, 0.98), eps=1e-09, lr=0.0001)
+            betas=(0.9, 0.98), eps=1e-09, lr=0.0003)
     loss_fn = nn.CosineEmbeddingLoss()
     if not opt.test_mode:
         train(dan, training_data, validation_data, optimizer, loss_fn, device ,opt)
@@ -226,7 +261,7 @@ def main():
 
     checkpoint = torch.load(f"./models/{model_name}", map_location=device)
     dan.load_state_dict(checkpoint['model'])
-    test(dan, validation_data, loss_fn, device, opt)
+    test(dan, test_data, loss_fn, device, opt)
     #predict_prob(dan, test_data, loss_fn, device, opt)
 if __name__ == '__main__':
     main()
