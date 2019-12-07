@@ -1,6 +1,6 @@
 data/
 *.pkl
-
+*.zip
 
 *_py.class
 *ste*.py[cod]
