@@ -56,7 +56,7 @@ def build_vocab_cap(path, threshold):
     for word, cnt in counter.items():
         word_count[word] = cnt
     # Adds the words to the vocabulary.
-    
+
     vocab.add_word(Constants.PAD_WORD)
     vocab.add_word(Constants.UNK_WORD)
     vocab.add_word(Constants.BOS_WORD)
@@ -80,11 +80,9 @@ def build_vocab_tag(path, threshold):
         lines = open(fp, 'r').readlines()
         for line in lines:
             text = line.strip()
-            tag, objs = text.split(':')
-            tag = tag.lower()
-            tokens = nlp.tokenize(tag)
+            tags= text.replace(":", " ").lower().split(' ')
             # print(tokens)
-            counter.update(tokens)
+            counter.update(tags)
 
     # If the word frequency is less than 'threshold', then the word is discarded.
     words = [word for word, cnt in counter.items() if cnt >= threshold]
@@ -94,7 +92,7 @@ def build_vocab_tag(path, threshold):
     for word, cnt in counter.items():
         word_count[word] = cnt
     # Adds the words to the vocabulary.
-    
+
     vocab.add_word(Constants.PAD_WORD)
     vocab.add_word(Constants.UNK_WORD)
     vocab.add_word(Constants.BOS_WORD)
@@ -130,7 +128,7 @@ def main(args):
     vocab_tag_path = os.path.join(args.vocab_dir, f'vocab_tag.pkl')
     with open(vocab_tag_path, 'wb') as f:
         pickle.dump(vocab_tag, f)
-    
+
     print("Total tag vocabulary size: %d" %len(vocab_tag))
     print(vocab_tag.word2idx)
     print("Saved the tag vocabulary wrapper to '%s'" %vocab_tag_path)

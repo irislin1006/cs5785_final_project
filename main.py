@@ -20,6 +20,7 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
     model.train()
     total_loss = 0
     count = 0
+    CosineSim = nn.CosineSimilarity()
     for batch in tqdm(
             training_data, mininterval=2,
             desc='  - (Training)   ', leave=False):
@@ -27,17 +28,18 @@ def train_epoch(model, training_data, optimizer, loss_fn, device, opt):
         optimizer.zero_grad()
         # prepare data
         img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
-        img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
+        img_embedd, cap_embedd, tag_embedd, tag_img_embedd = model(img_fea, captions, tags, c_lengths, t_lengths)
         # negative sampling
-        img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
+        #img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
+        #tag_embedd = torch.cat([tag_embedd, tag_embedd]).to(device)
+        tag_img_embedd = torch.cat([tag_img_embedd, tag_img_embedd]).to(device)
         cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
         negative_sampling = torch.cat([torch.ones(c_lengths.size()),
             -1*torch.ones(c_lengths.size())]).to(device).squeeze()
         #negative_sampling = torch.ones(c_lengths.size()).to(device)
-        
-        
+
         # backward
-        losses = loss_fn(img_embedd, cap_embedd, negative_sampling)
+        losses = loss_fn(tag_img_embedd, cap_embedd, negative_sampling)
         loss = losses.mean()
         loss.backward()
         optimizer.step()
@@ -68,14 +70,16 @@ def eval_epoch(model, validation_data, loss_fn, device, opt):
                 desc='  - (Validation) ', leave=False):
             # prepare data
             img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
-            img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
-            # negative sampling
-            img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
+            img_embedd, cap_embedd, tag_embedd, tag_img_embedd = \
+                        model(img_fea, captions, tags, c_lengths, t_lengths)
+            #img_embedd = torch.cat([img_embedd, img_embedd]).to(device)
+            #tag_embedd = torch.cat([tag_embedd, tag_embedd]).to(device)
+            tag_img_embedd = torch.cat([tag_img_embedd, tag_img_embedd]).to(device)
             cap_embedd = torch.cat([cap_embedd, torch.flip(cap_embedd, [0])]).to(device)
             negative_sampling = torch.cat([torch.ones(c_lengths.size()),
                 -1*torch.ones(c_lengths.size())]).to(device).squeeze()
             # backward
-            losses = loss_fn(img_embedd, cap_embedd, negative_sampling)
+            losses = loss_fn(tag_img_embedd, cap_embedd, negative_sampling)
             loss = losses.mean()
             # note keeping
             total_loss += loss.item()
@@ -91,21 +95,23 @@ def test(model, test_data, loss_fn, device, opt):
     model.eval()
     count=0
     total_loss = 0
-    img_embedds = []
-    caption_embedds = []
     img_ids = []
+    query_embedds = []
+    target_embedds = []
     with torch.no_grad():
         for batch in tqdm(
                 test_data, mininterval=2,
                 desc='  - (Testing) ', leave=False):
             # prepare data
             img_fea, captions, tags, c_lengths, t_lengths = map(lambda x:x.to(device), batch[1])
-            img_embedd, cap_embedd = model(img_fea, captions, c_lengths)
-            
+            img_embedd, cap_embedd, tag_embedd, tag_img_embedd = \
+                        model(img_fea, captions, tags, c_lengths, t_lengths)
+
             img_ids.extend(batch[0])
-            img_embedds.append(img_embedd)
-            caption_embedds.append(cap_embedd)
-            
+            #img_embedds.append(img_embedd)
+            target_embedds.append(tag_img_embedd)
+            query_embedds.append(cap_embedd)
+
             ## compute loss
             #loss = loss_fn(img_embedd, cap_embedd)
             #total_loss += loss.item()
@@ -113,24 +119,26 @@ def test(model, test_data, loss_fn, device, opt):
     #loss_per_word = total_loss/count
     #print("----- Test Result -----")
     #print("Loss:", loss_per_word)
-    img_embedds = torch.cat(img_embedds, dim=0)
-    caption_embedds = torch.cat(caption_embedds, dim=0)
-    print("img shape:", img_embedds.size())
-    print("caption shape:", caption_embedds.size())
-    ranking(img_embedds, caption_embedds, img_ids)
+    #img_embedds = torch.cat(img_embedds, dim=0)
+    target_embedds = torch.cat(target_embedds, dim=0)
+    query_embedds = torch.cat(query_embedds, dim=0)
+    #print("img shape:", img_embedds.size())
+    print("target shape:", target_embedds.size())
+    print("query shape:", query_embedds.size())
+    ranking(query_embedds, target_embedds, img_ids)
 
-def ranking(img_embedds, caption_embedds, img_ids):
+def ranking(query_embedds, target_embedds, img_ids):
     """
-    @ param img_embedds = (2000, 100)
-    @ param caption_embedds = (2000, 100)
+    @ param query_embedds = (2000, 100)
+    @ param target_embedds = (2000, 100)
     @ param img_ids = (2000,)
     """
 
     # cos_sim = (2000, 2000)
-    cos_sim = torch.mm(caption_embedds,img_embedds.T)/ \
-                torch.mm(caption_embedds.norm(2, dim=1, keepdim=True),
-                        img_embedds.norm(2, dim=1, keepdim=True).T)
-    _, idx = torch.topk(cos_sim, 80, dim=1)
+    cos_sim = torch.mm(query_embedds,target_embedds.T)/ \
+                torch.mm(query_embedds.norm(2, dim=1, keepdim=True),
+                        target_embedds.norm(2, dim=1, keepdim=True).T)
+    _, idx = torch.topk(cos_sim, 20, dim=1)
     top20 = idx.cpu().numpy()
     img_ids = np.array(img_ids)
     count = 0
@@ -169,9 +177,9 @@ def train(model, training_data, validation_data, optimizer, loss_fn, device, opt
             log_vf.write('epoch,loss\n')
 
     valid_losses = []
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2, verbose=True)
     for epoch_i in range(opt.epoch):
         print('[ Epoch', epoch_i, ']')
-
         start = time.time()
         train_loss  = train_epoch(
             model, training_data, optimizer, loss_fn, device, opt=opt)
@@ -194,7 +202,7 @@ def train(model, training_data, validation_data, optimizer, loss_fn, device, opt
                'elapse: {elapse:3.3f} min'.format(
                    loss=valid_loss,
                    elapse=(time.time()-start)/60))
-
+        scheduler.step(valid_loss)
         valid_losses += [valid_loss]
 
         model_state_dict = model.state_dict()
@@ -233,7 +241,7 @@ def main():
     ''' Main function '''
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-epoch', type=int, default=20)
+    parser.add_argument('-epoch', type=int, default=50)
     parser.add_argument('-batch_size', type=int, default=32)
 
     parser.add_argument('-dropout', type=float, default=0.5)
@@ -260,11 +268,11 @@ def main():
 
     device = torch.device(f'cuda:{opt.device}' if opt.cuda else 'cpu')
 
-    dan = Ingres2Recipe(len(vocab_cap), opt.embedding_size, opt.image_hidden_size, opt.dropout).to(device)
+    dan = Ingres2Recipe(len(vocab_cap), len(vocab_tag), opt.embedding_size, opt.image_hidden_size, opt.dropout).to(device)
     optimizer = optim.Adam(
             dan.parameters(),
-            betas=(0.9, 0.98), eps=1e-09, lr=0.001)
-    loss_fn = nn.CosineEmbeddingLoss(margin=0.1, reduction='none')
+            betas=(0.9, 0.98), eps=1e-09, lr=0.005)
+    loss_fn = nn.CosineEmbeddingLoss(margin=0.5, reduction='none')
     if not opt.test_mode:
         train(dan, training_data, validation_data, optimizer, loss_fn, device ,opt)
 
@@ -272,7 +280,7 @@ def main():
 
     checkpoint = torch.load(f"./models/{model_name}", map_location=device)
     dan.load_state_dict(checkpoint['model'])
-    test(dan, training_data, loss_fn, device, opt)
+    test(dan, validation_data, loss_fn, device, opt)
     #predict_prob(dan, test_data, loss_fn, device, opt)
 if __name__ == '__main__':
     main()

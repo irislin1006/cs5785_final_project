@@ -10,7 +10,7 @@ def preprocess_train(path):
     img_path = os.path.join(path, 'features_train/')
     cap_path = os.path.join(path, 'descriptions_train/')
     tag_path = os.path.join(path, 'tags_train/')
-    
+
     img_filename = img_path + 'features_resnet1000intermediate_train.csv'
     images_df = pd.read_csv(img_filename, header=None)
     images = images_df.values
@@ -19,7 +19,7 @@ def preprocess_train(path):
     print(img_features.shape)
     print(img_features[0, 0])
     print(type(img_features[0, 0]))
-    
+
     output = []
     for i, (id_p, img_f) in enumerate(zip(img_ids, img_features)):
         data = {}
@@ -32,11 +32,12 @@ def preprocess_train(path):
         data['image_2048'] = img_f
         data['captions'] = open(cap_filename, 'r').read().splitlines()
         data['tags'] = open(tag_filename, 'r').read().splitlines()
-        
+
         output.append(data)
 
     length = len(output)
-    train, val = output[:int(length*0.8)], output[int(length*0.8):]
+    from sklearn.model_selection import train_test_split
+    train, val = train_test_split(output, test_size=0.2, random_state=22)
     print(len(train))
     print(len(val))
     with open('train.pkl', 'wb') as outfile:
@@ -48,12 +49,12 @@ def preprocess_test(path):
     img_path = os.path.join(path, 'features_test/')
     cap_path = os.path.join(path, 'descriptions_test/')
     tag_path = os.path.join(path, 'tags_test/')
-    
+
     img_filename = img_path + 'features_resnet1000intermediate_test.csv'
     images_df = pd.read_csv(img_filename, header=None)
     images = images_df.values
     img_ids, img_features = images[:, 0], images[:, 1:]
-    
+
     output = []
     for i, (id_p, img_f) in enumerate(zip(img_ids, img_features)):
         # print(img_f.shape)
@@ -67,7 +68,7 @@ def preprocess_test(path):
         data['image_2048'] = img_f
         data['captions'] = open(cap_filename, 'r').read().splitlines()
         data['tags'] = open(tag_filename, 'r').read().splitlines()
-        
+
         output.append(data)
 
     # print(output)

@@ -33,7 +33,7 @@ class ImageSearchDataset(Dataset):
 
         # tokenize tags
         #print(tags)
-        tags_genre = [tag.split(':')[0] for tag in tags]
+        tags_genre = ' '.join(tags).replace(':', '').split(' ')
         t_tokens = []
         t_tokens.extend([self.vocab_tag(token) for i, token in
             enumerate(tags_genre) if i<self.max_len])
@@ -44,12 +44,12 @@ class ImageSearchDataset(Dataset):
         image_id, img_fea, captions, tags = zip(*data)
         c_lengths = [len(x) for x in captions]
         t_lengths = [len(x) for x in tags]
-        
+
         #print(tags)
 
         padded_caps = [n + [Constants.PAD for _ in range(self.max_len - len(n))] for n in captions]
         padded_tags = [n + [Constants.PAD for _ in range(self.max_len - len(n))] for n in tags]
-        
+
         #image_id = torch.Tensor(image_id)
         img_fea = torch.FloatTensor(img_fea)
         captions = torch.LongTensor(padded_caps).view(-1, self.max_len)
@@ -74,7 +74,7 @@ def get_loader(data, vocab_cap, vocab_tag, batch_size, shuffle, num_workers):
 def get_loaders(args):
     print("----- Loading Vocab -----")
     vocab_cap = pickle.load(open('vocab_cap.pkl', 'rb'))
-    vocab_tag = pickle.load(open('vocab_cap.pkl', 'rb'))
+    vocab_tag = pickle.load(open('vocab_tag.pkl', 'rb'))
     print(f"vocab cap size: {len(vocab_cap)}, vocab tag cap size: {len(vocab_tag)}")
     print('----- Loading Note -----')
 
