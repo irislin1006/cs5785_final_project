@@ -1,8 +1,10 @@
 data/
 *.pkl
 
-    loss_fn = nn.BCEWithLogitsLoss(F.softmax(torch.FloatTensor(vocab_tag.word_count).to(device), dim=-1)*10)
-    ass
+
+*_py.class
+*ste*.py[cod]
+*$py.class$py.class
 
 # C extensions
 *.so
