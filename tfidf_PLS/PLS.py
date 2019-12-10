@@ -1,23 +1,31 @@
 from sklearn.cross_decomposition import PLSRegression
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+from numpy import linalg as LA
 import numpy as np
 import time
 import pickle
-from build_vocab import Vocabulary
-def ranking(query_embedds, target_embedds, img_ids):
+import torch
+
+
+def ranking(query_embedds, target_embedds, img_ids, file_name):
     """
     @ param query_embedds = (n, d)
     @ param target_embedds = (n, d)
     @ param img_ids = (n,)
     """
+    print(query_embedds.shape)
+    print(target_embedds.shape)
 
-    cos_sim = torch.mm(query_embedds,target_embedds.T)/ \
-                torch.mm(query_embedds.norm(2, dim=1, keepdim=True),
-                        target_embedds.norm(2, dim=1, keepdim=True).T)
-    _, idx = torch.topk(cos_sim, len(query_embedds)//100, dim=1)
-    top20 = idx.cpu().numpy()
+    cos_sim = cosine_similarity(query_embedds, target_embedds)
+    print(cos_sim.shape)
+
+    top20 = np.argsort(cos_sim, axis=1)[:, :20]
+    # top20 = idx.cpu().numpy()
+    print(top20.shape)
+
     img_ids = np.array(img_ids)
     count = 0
-    with open('answer.csv', 'w') as f:
+    with open(file_name, 'w') as f:
         f.write("Descritpion_ID,Top_20_Image_IDs\n")
         for i, img_id in enumerate(img_ids):
             top_imgs = img_ids[top20[i]]
@@ -28,29 +36,33 @@ def ranking(query_embedds, target_embedds, img_ids):
                 count+=1
         print("count", count)
 
-print("----- Loading Vocab -----")
-vocab_cap = pickle.load(open('vocab_cap.pkl', 'rb'))
-vocab_tag = pickle.load(open('vocab_tag.pkl', 'rb'))
-print(f"vocab cap size: {len(vocab_cap)}, vocab tag cap size: {len(vocab_tag)}")
-print('----- Loading Note -----')
+
+
 
 train = pickle.load(open('train.pkl', 'rb'))
 test = pickle.load(open('test.pkl', 'rb'))
 
+print(train['captions'][0])
 print(train['tags'][0])
+print(train['image_2048'])
+# print(train['image_2048'].shape)
 
 print("=== fit model  ===")
-pls2 = PLSRegression(n_components=20)
+pls2 = PLSRegression(n_components=1000)
 t = time.time()
 pls2.fit(train['image_2048'], train['captions'])
+# ridge.fit(train['captions'], train['image_2048'])
 print(time.time()-t)
 
 print("=== test training data ===")
 predict_captions = pls2.predict(train['image_2048'])
-ranking(train['captions'], predict_captions, train['image_id'])
+# predict_image_features = ridge.predict(train['captions'])
+print(predict_captions.shape)
+ranking(train['captions'], predict_captions, train['image_id'], 'training_test_answer.csv')
 
 
 print("=== test testing data ===")
 predict_captions = pls2.predict(test['image_2048'])
-ranking(test['captions'], predict_captions, test['image_id'])
+print(predict_captions.shape)
+ranking(test['captions'], predict_captions, test['image_id'], 'answer.csv')
 

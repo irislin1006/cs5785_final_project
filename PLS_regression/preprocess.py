@@ -6,6 +6,10 @@ import numpy as np
 import re
 import pandas as pd
 from  build_vocab import Vocabulary
+
+from nltk.tokenize import TweetTokenizer
+nlp = TweetTokenizer()
+
 def preprocess_train(path):
     img_path = os.path.join(path, 'features_train/')
     cap_path = os.path.join(path, 'descriptions_train/')
@@ -39,6 +43,13 @@ def preprocess_train(path):
             tag_bow[vocab_tag(t)] = 1
         output['tags'].append(np.array(tag_bow))
 
+
+        cap = " ".join(open(cap_filename, 'r').read().splitlines())
+        cap_bow = [0.]*len(vocab_cap)
+        for t in nlp.tokenize(cap):
+            cap_bow[vocab_cap(t)] = 1
+        output['captions'].append(np.array(cap_bow))
+
     length = len(output['image_id'])
     with open('train.pkl', 'wb') as outfile:
         pickle.dump(output, outfile)
@@ -71,6 +82,12 @@ def preprocess_test(path):
         for t in tag:
             tag_bow[vocab_tag(t)] = 1
         output['tags'].append(np.array(tag_bow))
+
+        cap = " ".join(open(cap_filename, 'r').read().splitlines())
+        cap_bow = [0.]*len(vocab_cap)
+        for t in nlp.tokenize(cap):
+            cap_bow[vocab_cap(t)] = 1
+        output['captions'].append(np.array(cap_bow))
 
     length = len(output['image_id'])
     with open('test.pkl', 'wb') as outfile:

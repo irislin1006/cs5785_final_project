@@ -6,6 +6,10 @@ import numpy as np
 import re
 import pandas as pd
 
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+vectorizer = TfidfVectorizer(stop_words="english")
+
 def preprocess_train(path):
     img_path = os.path.join(path, 'features_train/')
     cap_path = os.path.join(path, 'descriptions_train/')
@@ -20,6 +24,15 @@ def preprocess_train(path):
     print(img_features[0, 0])
     print(type(img_features[0, 0]))
 
+    captions = []
+    for i, (id_p, img_f) in enumerate(zip(img_ids, img_features)):
+        id = id_p.split('/')[1]
+        filename = id[:-4]
+        cap_filename = cap_path + filename +'.txt'
+        captions.append(" ".join(open(cap_filename, 'r').read().splitlines()))
+
+    vectorizer.fit(captions)
+
     output = []
     for i, (id_p, img_f) in enumerate(zip(img_ids, img_features)):
         data = {}
@@ -30,7 +43,9 @@ def preprocess_train(path):
 
         data['image_id'] = id
         data['image_2048'] = img_f
-        data['captions'] = open(cap_filename, 'r').read().splitlines()
+
+        cap = " ".join(open(cap_filename, 'r').read().splitlines())
+        data['captions'] = vectorizer.transform([cap])[0]
         data['tags'] = open(tag_filename, 'r').read().splitlines()
 
         output.append(data)
@@ -44,6 +59,8 @@ def preprocess_train(path):
         pickle.dump(train, outfile)
     with open('val.pkl', 'wb') as outfile:
         pickle.dump(val, outfile)
+    print("tfidf len", len(data['captions']))
+    print(data['captions'])
 
 def preprocess_test(path):
     img_path = os.path.join(path, 'features_test/')
@@ -66,7 +83,8 @@ def preprocess_test(path):
 
         data['image_id'] = id
         data['image_2048'] = img_f
-        data['captions'] = open(cap_filename, 'r').read().splitlines()
+        cap = " ".join(open(cap_filename, 'r').read().splitlines())
+        data['captions'] = vectorizer.transform([cap])[0]
         data['tags'] = open(tag_filename, 'r').read().splitlines()
 
         output.append(data)
