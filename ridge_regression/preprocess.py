@@ -8,7 +8,7 @@ import pandas as pd
 from  build_vocab import Vocabulary
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-vectorizer = TfidfVectorizer(input='filename')
+vectorizer_cap = TfidfVectorizer(input='filename')
 vectorizer_tag = TfidfVectorizer(input='filename')
 
 def preprocess_train(path):
@@ -40,25 +40,18 @@ def preprocess_train(path):
 
         output['image_id'].append(id)
         output['image_2048'].append(img_f)
-        # tag = open(tag_filename, 'r').read().splitlines()
-        # tag = " ".join(tag).replace(":", " ").split(" ")
-        # tag_bow = [0.]*len(vocab_tag)
-        # for t in tag:
-        #     tag_bow[vocab_tag(t)] = 1
-        # output['tags'].append(np.array(tag_bow))
-
 
         cap_filenames.append(cap_filename)
         tag_filenames.append(tag_filename)
 
-    weighted_captions = vectorizer.fit_transform(cap_filenames)
+    weighted_captions = vectorizer_cap.fit_transform(cap_filenames)
     output['captions'] = weighted_captions.toarray()
     print(weighted_captions.shape)
 
     weighted_tags = vectorizer_tag.fit_transform(tag_filenames)
     output['tags'] = weighted_tags.toarray()
     print(weighted_tags.shape)
-    print(vectorizer_tag.get_feature_names())
+    # print(vectorizer_tag.get_feature_names())
 
 
     output['image_2048'] = np.array(output['image_2048']).astype(float)
@@ -68,15 +61,12 @@ def preprocess_train(path):
     with open('train.pkl', 'wb') as outfile:
         pickle.dump(output, outfile)
 
-    return vectorizer.vocabulary_, vectorizer_tag.vocabulary_
 
-def preprocess_test(path, vocab, vocab_tag):
+def preprocess_test(path):
     img_path = os.path.join(path, 'features_test/')
     cap_path = os.path.join(path, 'descriptions_test/')
     tag_path = os.path.join(path, 'tags_test/')
-    # print("----- Loading Vocab -----")
-    # vocab_cap = pickle.load(open('vocab_cap.pkl', 'rb'))
-    # vocab_tag = pickle.load(open('vocab_tag.pkl', 'rb'))
+
 
     img_filename = img_path + 'features_resnet1000intermediate_test.csv'
     images_df = pd.read_csv(img_filename, header=None)
@@ -95,26 +85,19 @@ def preprocess_test(path, vocab, vocab_tag):
 
         output['image_id'].append(id)
         output['image_2048'].append(img_f)
-        # tag = open(tag_filename, 'r').read().splitlines()
-        # tag = " ".join(tag).replace(":", " ").split(" ")
-        # tag_bow = [0.]*len(vocab_tag)
-        # for t in tag:
-        #     tag_bow[vocab_tag(t)] = 1
-        # output['tags'].append(np.array(tag_bow))
 
-        # cap = open(cap_filename, 'r').read().splitlines()
         # captions.append(" ".join(cap))
         cap_filenames.append(cap_filename)
         tag_filenames.append(tag_filename)
 
-    weighted_captions = vectorizer.transform(cap_filenames)
+    weighted_captions = vectorizer_cap.transform(cap_filenames)
     output['captions'] = weighted_captions.toarray()
     print(weighted_captions.shape)
 
     weighted_tags = vectorizer_tag.transform(tag_filenames)
     output['tags'] = weighted_tags.toarray()
     print(weighted_tags.shape)
-    print(vectorizer_tag.get_feature_names())
+    # print(vectorizer_tag.get_feature_names())
 
     output['image_2048'] = np.array(output['image_2048']).astype(float)
 
@@ -126,6 +109,6 @@ def preprocess_test(path, vocab, vocab_tag):
 
 if __name__ == '__main__':
     data_path = '../data'
-    vocab, vocab_tag = preprocess_train(data_path)
-    preprocess_test(data_path, vocab, vocab_tag)
+    preprocess_train(data_path)
+    preprocess_test(data_path)
 
