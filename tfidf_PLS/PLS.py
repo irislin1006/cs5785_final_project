@@ -6,8 +6,9 @@ import time
 import pickle
 import torch
 
+from sklearn.decomposition import PCA
 
-def ranking(query_embedds, target_embedds, img_ids, file_name):
+def ranking(query_embedds, target_embedds, img_ids, file_name, testing=False):
     """
     @ param query_embedds = (n, d)
     @ param target_embedds = (n, d)
@@ -18,6 +19,12 @@ def ranking(query_embedds, target_embedds, img_ids, file_name):
 
     cos_sim = cosine_similarity(query_embedds, target_embedds)
     print(cos_sim.shape)
+    if testing:
+        save_dir = ".././cos_sim/"
+        if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+        path = save_dir + 'pls.npy'
+        np.save(path, cos_sim)
 
     top20 = np.argsort(cos_sim, axis=1)[:, :20]
     # top20 = idx.cpu().numpy()
@@ -47,6 +54,12 @@ print(train['tags'][0])
 print(train['image_2048'])
 # print(train['image_2048'].shape)
 
+##deminsion reduction
+pca = PCA(n_components=2000)
+pca.fit(train['captions'])
+train['captions'] = pca.transform(train['captions'])
+test['captions'] = pca.transform(test['captions'])
+
 print("=== fit model  ===")
 pls2 = PLSRegression(n_components=1000)
 t = time.time()
@@ -64,5 +77,5 @@ ranking(train['captions'], predict_captions, train['image_id'], 'training_test_a
 print("=== test testing data ===")
 predict_captions = pls2.predict(test['image_2048'])
 print(predict_captions.shape)
-ranking(test['captions'], predict_captions, test['image_id'], 'answer.csv')
+ranking(test['captions'], predict_captions, test['image_id'], 'answer.csv', testing=True)
 

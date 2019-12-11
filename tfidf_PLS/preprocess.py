@@ -8,8 +8,8 @@ import pandas as pd
 from  build_vocab import Vocabulary
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-vectorizer = TfidfVectorizer(input='filename')
-vectorizer_tag = TfidfVectorizer(input='filename')
+vectorizer = TfidfVectorizer(input='filename', stop_words='english')
+vectorizer_tag = TfidfVectorizer(input='filename', stop_words='english')
 
 def preprocess_train(path):
     img_path = os.path.join(path, 'features_train/')
